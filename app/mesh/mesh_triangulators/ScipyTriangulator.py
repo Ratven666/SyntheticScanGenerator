@@ -79,3 +79,4 @@ class ScipyTriangulator:
         mesh.mesh.visual.vertex_colors = self.vertices_colors
         mesh.vertices_colors = self.vertices_colors
         mesh.face_colors = self.face_colors
+        return mesh

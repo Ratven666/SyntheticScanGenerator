@@ -1,3 +1,4 @@
+import numpy as np
 import trimesh
 from sklearn.neighbors import NearestNeighbors
 
@@ -8,19 +9,37 @@ from app.scan.ScanPoint import ScanPoint
 
 class Mesh:
 
-    def __init__(self):
+    def __init__(self, name="DefaultMeshName"):
+        self.name = name
         self.mesh = None
         self.vertices_colors = None
         self.face_colors = None
-
-    def __iter__(self):
-        return iter(self.mesh.faces)
 
     def __iter__(self):
         return iter(MeshIterator(self))
 
     def __len__(self):
         return len(self.mesh.faces)
+
+    def get_z_by_xy(self, x, y):
+        ray_origin = [x, y, self.mesh.bounds[1][2] + 10]  # z = max_z + 10
+        ray_direction = [0, 0, -1]  # Направление вниз
+        locations, _, _ = self.mesh.ray.intersects_location(
+            ray_origins=[ray_origin],
+            ray_directions=[ray_direction]
+        )
+        if len(locations) > 0:
+            z = locations[0][2]  # Берём первую точку пересечения
+            return z
+        else:
+            return None
+
+    def rtx_by_dirs(self, ray_origins, ray_directions):
+        ray_directions = trimesh.util.unitize(ray_directions)
+        locations, index_ray, index_tri = self.mesh.ray.intersects_location(
+            ray_origins=ray_origins,
+            ray_directions=ray_directions)
+        return locations, index_ray, index_tri
 
     def create_mesh_from_scan(self, scan, scan_triangulator=ScipyTriangulator):
         scan_triangulator().create_mesh(mesh=self, scan=scan)
@@ -60,9 +79,17 @@ if __name__ == "__main__":
     print(mesh)
     print(len(mesh))
     # mesh.plot()
-    mesh.simplify_mesh(face_count=1000)
-    mesh.plot()
-    print(len(mesh))
-    for t in mesh:
-        print(t)
+    # mesh.simplify_mesh(face_count=1000)
+    # mesh.plot()
+    # print(len(mesh))
+    # for t in mesh:
+    #     print(t)
     # mesh.export_mesh("./mesh.ply")
+
+    bounds = mesh.mesh.bounds  # [[min_x, min_y, min_z], [max_x, max_y, max_z]]
+
+    # Центр AABB (середина по осям X и Y)
+    center_x = (bounds[0][0] + bounds[1][0]) / 2
+    center_y = (bounds[0][1] + bounds[1][1]) / 2
+    z = mesh.get_z_by_xy(center_x, center_y)
+    print(center_x, center_y, z)

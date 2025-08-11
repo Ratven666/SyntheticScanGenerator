@@ -38,10 +38,12 @@ class Scan:
                                 z=point.z,
                                 color=color)
             self.add_point(s_point)
+        return self
 
     def import_points_from_file(self, file_path, parser=ScanParserFactory):
         parser = parser(file_path)
         parser.parse(scan=self)
+        return self
 
     def export_points_from_file(self, file_path, parser=ScanExportersToTxt):
         parser = parser(file_path)

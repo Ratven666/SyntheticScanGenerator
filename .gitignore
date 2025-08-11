@@ -213,3 +213,5 @@ src/
 *.DS_Store
 
 *.ply
+
+*.xyz
