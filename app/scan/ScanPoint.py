@@ -1,9 +1,10 @@
+from CONFIG import DEFAULT_POINTS_COLOR
 from app.base.Point import Point
 
 
 class ScanPoint(Point):
 
-    def __init__(self, x, y, z, color=(0, 0, 0), id_=None):
+    def __init__(self, x, y, z, color=DEFAULT_POINTS_COLOR, id_=None):
         super().__init__(x, y, z)
         self.color = color
         self.id_ = id_
