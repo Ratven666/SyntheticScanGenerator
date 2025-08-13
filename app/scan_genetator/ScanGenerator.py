@@ -5,6 +5,7 @@ from app.mesh.Mesh import Mesh
 from app.scan.Scan import Scan
 from app.scan.ScanPoint import ScanPoint
 from app.scan_genetator.distance_mse_models.BaseDistanceMSEModel import BaseDistanceMSEModel
+from app.scan_genetator.orientation_mse_models.OrientationMSEModelFactory import OrientationMSEModelFactory
 from app.scan_genetator.vectors_generator.VectorGeneratorFactory import VectorGeneratorFactory
 from app.scanners.ScannerABC import ScannerABC
 
@@ -17,12 +18,16 @@ class ScanGenerator:
                  scan_parameters,
                  position_data,
                  distance_mse_model=BaseDistanceMSEModel(),
+                 orientation_mse_model=None,
+                 orientation_mse_parameters_diсt=None,
                  ):
         self.scanner = scanner
         self.mesh = mesh
         self.scan_parameters = scan_parameters
         self.position_data = position_data
         self.distance_mse_model = distance_mse_model
+        self.orientation_mse_model = orientation_mse_model
+        self.orientation_mse_parameters_diсt = orientation_mse_parameters_diсt
 
     def _get_rays(self):
         vector_generator = VectorGeneratorFactory(self.position_data)
@@ -113,6 +118,15 @@ class ScanGenerator:
         mse_locations = ray_origins + np.column_stack((x, y, z))
         return mse_locations
 
+    def _calk_orientation_mse_location(self, ray_origins, locations, index_rays):
+        if self.orientation_mse_model is None:
+            self.orientation_mse_model = OrientationMSEModelFactory(self.scanner, self.orientation_mse_parameters_diсt)
+        mse_ray_origins, mse_location = self.orientation_mse_model.calculate_orientation_mse_location(ray_origins,
+                                                                                                      locations,
+                                                                                                      index_rays,
+                                                                                                      )
+        return mse_ray_origins, mse_location
+
     def _init_scan(self, locations, index_ray, index_tri, get_true_scan, with_color=True):
         scan = Scan(f"Scan_by_{self.mesh.name}_{self.position_data}_{self.scan_parameters}_is_{get_true_scan}_scan")
         for idx in range(len(locations)):
@@ -129,21 +143,23 @@ class ScanGenerator:
 
     def create_scan(self, get_true_scan=True):
         base_direction, ray_origins, base_directions_vectors, mse_directions_vectors = self._get_rays()
-        locations, index_ray, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
+        locations, index_rays, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
         if get_true_scan is False:
             distances_errors = (self.distance_mse_model.
                                 calculate_distance_errors(scan_generator_obj=self,
-                                                          base_direction=base_direction[index_ray],
-                                                          ray_origins=ray_origins[index_ray],
-                                                          base_directions_vectors=base_directions_vectors[index_ray],
-                                                          mse_directions_vectors=mse_directions_vectors[index_ray],
+                                                          base_direction=base_direction[index_rays],
+                                                          ray_origins=ray_origins[index_rays],
+                                                          base_directions_vectors=base_directions_vectors[index_rays],
+                                                          mse_directions_vectors=mse_directions_vectors[index_rays],
                                                           locations=locations,
-                                                          index_ray=index_ray,
+                                                          index_ray=index_rays,
                                                           index_tri=index_tri,
                                                           ))
-            locations = self._calk_mse_locations(base_direction, distances_errors, ray_origins, locations, index_ray)
-        scan = self._init_scan(locations, index_ray, index_tri, get_true_scan=get_true_scan)
+            locations = self._calk_mse_locations(base_direction, distances_errors, ray_origins, locations, index_rays)
+            mse_ray_origins, locations = self._calk_orientation_mse_location(ray_origins, locations, index_rays)
+        scan = self._init_scan(locations, index_rays, index_tri, get_true_scan=get_true_scan)
         return scan
+
         # print(f"Найдено пересечений: {len(locations)}")
         # # Визуализация
         # if len(locations) > 0:
@@ -175,14 +191,17 @@ if __name__ == "__main__":
     mesh.export_mesh("mesh.ply")
 
     # mesh.plot()
-
+    orientation_mse_parameters_diсt = {"translation": [0, 0, 10],
+                                       "rotation_angles": [0, 0, 90]}
     sg = ScanGenerator(scanner=scanner,
                        mesh=mesh,
                        position_data=position_data,
                        scan_parameters=scan_parameters,
+                       # orientation_mse_parameters_diсt=orientation_mse_parameters_diсt,
+                       orientation_mse_parameters_diсt=None,
                        )
-    scan = sg.create_scan(get_true_scan=True)
-    scan.export_points_from_file("true_scan1.xyz")
+    # scan = sg.create_scan(get_true_scan=True)
+    # scan.export_points_from_file("true_scan1.xyz")
 
     scan = sg.create_scan(get_true_scan=False)
     scan.export_points_from_file("mse_scan1.xyz")
