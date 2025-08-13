@@ -1,9 +1,10 @@
-from abc import ABC, abstractmethod
+import numpy as np
+
+from app.scan_genetator.distance_mse_models.DistanceMSEModelABC import DistanceMSEModelABC
 
 
-class DistanceMSEModelABC(ABC):
+class BaseDistanceMSEModel(DistanceMSEModelABC):
 
-    @abstractmethod
     def calculate_distance_errors(self,
                                   scan_generator_obj,
                                   base_direction,
@@ -13,4 +14,6 @@ class DistanceMSEModelABC(ABC):
                                   locations,
                                   index_ray,
                                   index_tri):
-        pass
+        distance_accuracy = scan_generator_obj.scanner.distance_accuracy
+        distances_errors = np.random.normal(0, distance_accuracy, size=len(index_ray))
+        return distances_errors

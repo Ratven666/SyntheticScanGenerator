@@ -4,6 +4,7 @@ from CONFIG import DEFAULT_POINTS_COLOR, RTX_RAYS_CHUNK
 from app.mesh.Mesh import Mesh
 from app.scan.Scan import Scan
 from app.scan.ScanPoint import ScanPoint
+from app.scan_genetator.distance_mse_models.BaseDistanceMSEModel import BaseDistanceMSEModel
 from app.scan_genetator.vectors_generator.VectorGeneratorFactory import VectorGeneratorFactory
 from app.scanners.ScannerABC import ScannerABC
 
@@ -15,7 +16,7 @@ class ScanGenerator:
                  mesh: Mesh,
                  scan_parameters,
                  position_data,
-                 distance_mse_model=None,
+                 distance_mse_model=BaseDistanceMSEModel(),
                  ):
         self.scanner = scanner
         self.mesh = mesh
@@ -98,14 +99,11 @@ class ScanGenerator:
             locations, index_ray, index_tri = np.array([]), np.array([]), np.array([])
         return locations, index_ray, index_tri
 
-    def _calk_mse_locations(self, base_direction, ray_origins, locations, index_ray):
+    def _calk_mse_locations(self, base_direction, distances_errors, ray_origins, locations, index_ray):
         base_direction = base_direction[index_ray]
         ray_origins = ray_origins[index_ray]
         distances = np.linalg.norm(locations - ray_origins, axis=1)
-
-        distances_noises = np.random.normal(0, self.scanner.distance_accuracy, size=len(distances))
-
-        distances += distances_noises
+        distances += distances_errors
         azimuth_rad = np.deg2rad(base_direction[:, 0])
         zenith_rad = np.deg2rad(base_direction[:, 1])
         sin_zenith = np.sin(zenith_rad)
@@ -131,12 +129,19 @@ class ScanGenerator:
 
     def create_scan(self, get_true_scan=True):
         base_direction, ray_origins, base_directions_vectors, mse_directions_vectors = self._get_rays()
-        if get_true_scan:
-            locations, index_ray, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
-        else:
-            locations, index_ray, index_tri = self._get_points_by_rtx(ray_origins, mse_directions_vectors)
-
-            locations = self._calk_mse_locations(base_direction, ray_origins, locations, index_ray)
+        locations, index_ray, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
+        if get_true_scan is False:
+            distances_errors = (self.distance_mse_model.
+                                calculate_distance_errors(scan_generator_obj=self,
+                                                          base_direction=base_direction[index_ray],
+                                                          ray_origins=ray_origins[index_ray],
+                                                          base_directions_vectors=base_directions_vectors[index_ray],
+                                                          mse_directions_vectors=mse_directions_vectors[index_ray],
+                                                          locations=locations,
+                                                          index_ray=index_ray,
+                                                          index_tri=index_tri,
+                                                          ))
+            locations = self._calk_mse_locations(base_direction, distances_errors, ray_origins, locations, index_ray)
         scan = self._init_scan(locations, index_ray, index_tri, get_true_scan=get_true_scan)
         return scan
         # print(f"Найдено пересечений: {len(locations)}")
@@ -158,6 +163,7 @@ if __name__ == "__main__":
                                       max_range=1000,
                                       angular_accuracy=0.0028,
                                       distance_accuracy=0.005,
+                                      # distance_accuracy=1,
                                       )
     position_data = Point(6375, 12675, 112)
     scan_parameters = {"azimuth_step": 1, "zenith_step": None}
@@ -165,7 +171,7 @@ if __name__ == "__main__":
 
     scan = Scan("").import_points_from_file(file_path=r"../../src/PCLD_1.las")
     mesh = Mesh().create_mesh_from_scan(scan=scan)
-    mesh.simplify_mesh(face_count=10_000)
+    mesh.simplify_mesh(face_count=1_000)
     mesh.export_mesh("mesh.ply")
 
     # mesh.plot()
