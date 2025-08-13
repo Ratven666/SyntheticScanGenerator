@@ -1,6 +1,6 @@
 import numpy as np
 
-from CONFIG import DEFAULT_POINTS_COLOR, RTX_RAYS_CHUNK
+from CONFIG import DEFAULT_POINTS_COLOR, RTX_RAYS_CHUNK, RANDOM_SEED
 from app.mesh.Mesh import Mesh
 from app.scan.Scan import Scan
 from app.scan.ScanPoint import ScanPoint
@@ -17,9 +17,10 @@ class ScanGenerator:
                  mesh: Mesh,
                  scan_parameters,
                  position_data,
-                 distance_mse_model=BaseDistanceMSEModel(),
+                 distance_mse_model=BaseDistanceMSEModel(random_seed=RANDOM_SEED),
                  orientation_mse_model=None,
-                 orientation_mse_parameters_diсt=None,
+                 orientation_mse_parameters_dict=None,
+                 random_seed=RANDOM_SEED,
                  ):
         self.scanner = scanner
         self.mesh = mesh
@@ -27,10 +28,13 @@ class ScanGenerator:
         self.position_data = position_data
         self.distance_mse_model = distance_mse_model
         self.orientation_mse_model = orientation_mse_model
-        self.orientation_mse_parameters_diсt = orientation_mse_parameters_diсt
+        self.orientation_mse_parameters_dict = orientation_mse_parameters_dict
+        self.random_seed = random_seed
 
     def _get_rays(self):
         vector_generator = VectorGeneratorFactory(self.position_data)
+        if self.random_seed is not None:
+            np.random.seed(self.random_seed)
         if isinstance(self.scan_parameters, tuple):
             r_origin, base_dir, b_dir_vec, mse_dir_vec = vector_generator.get_vectors(self.scanner,
                                                                                       *self.scan_parameters)
@@ -120,7 +124,10 @@ class ScanGenerator:
 
     def _calk_orientation_mse_location(self, ray_origins, locations, index_rays):
         if self.orientation_mse_model is None:
-            self.orientation_mse_model = OrientationMSEModelFactory(self.scanner, self.orientation_mse_parameters_diсt)
+            self.orientation_mse_model = OrientationMSEModelFactory(self.scanner,
+                                                                    self.orientation_mse_parameters_dict,
+                                                                    random_seed=self.random_seed
+                                                                    )
         mse_ray_origins, mse_location = self.orientation_mse_model.calculate_orientation_mse_location(ray_origins,
                                                                                                       locations,
                                                                                                       index_rays,
@@ -143,8 +150,10 @@ class ScanGenerator:
 
     def create_scan(self, get_true_scan=True):
         base_direction, ray_origins, base_directions_vectors, mse_directions_vectors = self._get_rays()
-        locations, index_rays, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
-        if get_true_scan is False:
+        if get_true_scan:
+            locations, index_rays, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
+        else:
+            locations, index_rays, index_tri = self._get_points_by_rtx(ray_origins, mse_directions_vectors)
             distances_errors = (self.distance_mse_model.
                                 calculate_distance_errors(scan_generator_obj=self,
                                                           base_direction=base_direction[index_rays],
@@ -178,7 +187,10 @@ if __name__ == "__main__":
                                       vertical_limits=(60, 120),
                                       max_range=1000,
                                       angular_accuracy=0.0028,
+                                      # angular_accuracy=10,
                                       distance_accuracy=0.005,
+                                      # random_seed=28,
+                                      random_seed=RANDOM_SEED,
                                       # distance_accuracy=1,
                                       )
     position_data = Point(6375, 12675, 112)
@@ -191,20 +203,27 @@ if __name__ == "__main__":
     mesh.export_mesh("mesh.ply")
 
     # mesh.plot()
-    orientation_mse_parameters_diсt = {"translation": [0, 0, 10],
-                                       "rotation_angles": [0, 0, 90]}
+    orientation_mse_parameters_dict = {"base_translation": [0, 0, 0],
+                                       "base_rotation_angles": [0, 0, 0],
+                                       "mse_translation": [0, 0, 10],
+                                       "mse_rotation_angles": [0, 0, 90],
+                                       }
     sg = ScanGenerator(scanner=scanner,
                        mesh=mesh,
                        position_data=position_data,
                        scan_parameters=scan_parameters,
-                       # orientation_mse_parameters_diсt=orientation_mse_parameters_diсt,
-                       orientation_mse_parameters_diсt=None,
+                       orientation_mse_parameters_dict=orientation_mse_parameters_dict,
+                       # random_seed=18,
+                       random_seed=RANDOM_SEED,
                        )
     # scan = sg.create_scan(get_true_scan=True)
     # scan.export_points_from_file("true_scan1.xyz")
 
     scan = sg.create_scan(get_true_scan=False)
     scan.export_points_from_file("mse_scan1.xyz")
+
+    # scan = sg.create_scan(get_true_scan=False)
+    # scan.export_points_from_file("mse_scan2.xyz")
 
     # scan.plot()
     # for point in scan:

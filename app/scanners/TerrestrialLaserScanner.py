@@ -1,5 +1,6 @@
 import numpy as np
 
+from CONFIG import RANDOM_SEED
 from app.scanners.ScannerABC import ScannerABC
 
 
@@ -11,7 +12,9 @@ class TerrestrialLaserScanner(ScannerABC):
                  max_range,
                  angular_accuracy,
                  distance_accuracy=0.,
+                 random_seed=RANDOM_SEED,
                  ):
+        super().__init__(random_seed=random_seed)
         self.name = name
         self.horizontal_limits = horizontal_limits
         self.vertical_limits = vertical_limits
@@ -50,6 +53,7 @@ class TerrestrialLaserScanner(ScannerABC):
         return mse_directions
 
     def get_scanner_directions(self, azimuth_step, zenith_step=None):
+        super().get_scanner_directions()
         zenith_step = zenith_step if zenith_step is not None else azimuth_step
         zenith_angles = self._generate_directions_2d(self.vertical_limits[0],
                                                      self.vertical_limits[1],

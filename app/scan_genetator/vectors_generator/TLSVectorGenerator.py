@@ -17,7 +17,7 @@ class TLSVectorGenerator(VectorGeneratorABC):
             raise ValueError("Точка лежит за пределами поверхности!")
         center_point = Point(x=x,
                              y=y,
-                             z=z+hi)
+                             z=z + hi)
         return cls(center_point=center_point)
 
     @staticmethod
@@ -50,6 +50,7 @@ class TLSVectorGenerator(VectorGeneratorABC):
 
 if __name__ == "__main__":
     import time
+
     scanner = TerrestrialLaserScanner("Test", horizontal_limits=(0, 360),
                                       vertical_limits=(60, 120),
                                       max_range=1000,
@@ -57,8 +58,9 @@ if __name__ == "__main__":
                                       angular_accuracy=1,
                                       )
     tls_vg = TLSVectorGenerator(Point(100, 100, 100))
-    ray_origins, base_directions, base_directions_vectors, mse_directions_vectors = tls_vg.get_vectors(scanner, azimuth_step=10,
-                                                                                      zenith_step=10)
+    ray_origins, base_directions, base_directions_vectors, mse_directions_vectors = tls_vg.get_vectors(scanner,
+                                                                                                       azimuth_step=10,
+                                                                                                       zenith_step=10)
 
     for idx in range(len(ray_origins)):
         print(ray_origins[idx], "\t\t", base_directions_vectors[idx], "\t\t", mse_directions_vectors[idx])

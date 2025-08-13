@@ -14,6 +14,8 @@ class BaseDistanceMSEModel(DistanceMSEModelABC):
                                   locations,
                                   index_ray,
                                   index_tri):
+        if self.random_seed is not None:
+            np.random.seed(self.random_seed)
         distance_accuracy = scan_generator_obj.scanner.distance_accuracy
         distances_errors = np.random.normal(0, distance_accuracy, size=len(index_ray))
         return distances_errors
