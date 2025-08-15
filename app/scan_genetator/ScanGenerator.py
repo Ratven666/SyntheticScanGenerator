@@ -6,6 +6,7 @@ from app.scan.Scan import Scan
 from app.scan.ScanPoint import ScanPoint
 from app.scan_genetator.distance_mse_models.BaseDistanceMSEModel import BaseDistanceMSEModel
 from app.scan_genetator.orientation_mse_models.OrientationMSEModelFactory import OrientationMSEModelFactory
+from app.scan_genetator.points_filters.FalsePointsFilters import FalsePointsFilters
 from app.scan_genetator.vectors_generator.VectorGeneratorFactory import VectorGeneratorFactory
 from app.scanners.ScannerABC import ScannerABC
 
@@ -17,7 +18,8 @@ class ScanGenerator:
                  mesh: Mesh,
                  scan_parameters,
                  position_data,
-                 distance_mse_model=BaseDistanceMSEModel(random_seed=RANDOM_SEED),
+                 distance_mse_model=BaseDistanceMSEModel(point_filter_obj=FalsePointsFilters(random_seed=RANDOM_SEED),
+                                                         random_seed=RANDOM_SEED),
                  orientation_mse_model=None,
                  orientation_mse_parameters_dict=None,
                  random_seed=RANDOM_SEED,
@@ -108,19 +110,19 @@ class ScanGenerator:
             locations, index_ray, index_tri = np.array([]), np.array([]), np.array([])
         return locations, index_ray, index_tri
 
-    def _calk_mse_locations(self, base_direction, distances_errors, ray_origins, locations, index_ray):
-        base_direction = base_direction[index_ray]
-        ray_origins = ray_origins[index_ray]
-        distances = np.linalg.norm(locations - ray_origins, axis=1)
-        distances += distances_errors
-        azimuth_rad = np.deg2rad(base_direction[:, 0])
-        zenith_rad = np.deg2rad(base_direction[:, 1])
-        sin_zenith = np.sin(zenith_rad)
-        x = distances * sin_zenith * np.cos(azimuth_rad)
-        y = distances * sin_zenith * np.sin(azimuth_rad)
-        z = distances * np.cos(zenith_rad)
-        mse_locations = ray_origins + np.column_stack((x, y, z))
-        return mse_locations
+    # def _calk_mse_locations(self, base_direction, distances_errors, ray_origins, locations, index_ray):
+    #     base_direction = base_direction[index_ray]
+    #     ray_origins = ray_origins[index_ray]
+    #     distances = np.linalg.norm(locations - ray_origins, axis=1)
+    #     distances += distances_errors
+    #     azimuth_rad = np.deg2rad(base_direction[:, 0])
+    #     zenith_rad = np.deg2rad(base_direction[:, 1])
+    #     sin_zenith = np.sin(zenith_rad)
+    #     x = distances * sin_zenith * np.cos(azimuth_rad)
+    #     y = distances * sin_zenith * np.sin(azimuth_rad)
+    #     z = distances * np.cos(zenith_rad)
+    #     mse_locations = ray_origins + np.column_stack((x, y, z))
+    #     return mse_locations
 
     def _calk_orientation_mse_location(self, ray_origins, locations, index_rays):
         if self.orientation_mse_model is None:
@@ -154,17 +156,30 @@ class ScanGenerator:
             locations, index_rays, index_tri = self._get_points_by_rtx(ray_origins, base_directions_vectors)
         else:
             locations, index_rays, index_tri = self._get_points_by_rtx(ray_origins, mse_directions_vectors)
-            distances_errors = (self.distance_mse_model.
-                                calculate_distance_errors(scan_generator_obj=self,
-                                                          base_direction=base_direction[index_rays],
-                                                          ray_origins=ray_origins[index_rays],
-                                                          base_directions_vectors=base_directions_vectors[index_rays],
-                                                          mse_directions_vectors=mse_directions_vectors[index_rays],
-                                                          locations=locations,
-                                                          index_ray=index_rays,
-                                                          index_tri=index_tri,
-                                                          ))
-            locations = self._calk_mse_locations(base_direction, distances_errors, ray_origins, locations, index_rays)
+            locations, index_rays, index_tri = (self.distance_mse_model.
+                                                calculate_by_distance_mse_model(scan_generator_obj=self,
+                                                                                base_direction=base_direction[
+                                                                                    index_rays],
+                                                                                ray_origins=ray_origins[index_rays],
+                                                                                base_directions_vectors=
+                                                                                base_directions_vectors[index_rays],
+                                                                                mse_directions_vectors=
+                                                                                mse_directions_vectors[index_rays],
+                                                                                locations=locations,
+                                                                                index_ray=index_rays,
+                                                                                index_tri=index_tri, ))
+
+            # distances_errors = (self.distance_mse_model.
+            #                     calculate_distance_errors(scan_generator_obj=self,
+            #                                               base_direction=base_direction[index_rays],
+            #                                               ray_origins=ray_origins[index_rays],
+            #                                               base_directions_vectors=base_directions_vectors[index_rays],
+            #                                               mse_directions_vectors=mse_directions_vectors[index_rays],
+            #                                               locations=locations,
+            #                                               index_ray=index_rays,
+            #                                               index_tri=index_tri,
+            #                                               ))
+            # locations = self._calk_mse_locations(base_direction, distances_errors, ray_origins, locations, index_rays)
             mse_ray_origins, locations = self._calk_orientation_mse_location(ray_origins, locations, index_rays)
         scan = self._init_scan(locations, index_rays, index_tri, get_true_scan=get_true_scan)
         return scan
@@ -188,7 +203,7 @@ if __name__ == "__main__":
                                       max_range=1000,
                                       angular_accuracy=0.0028,
                                       # angular_accuracy=10,
-                                      distance_accuracy=0.005,
+                                      distance_accuracy=0.5,
                                       # random_seed=28,
                                       random_seed=RANDOM_SEED,
                                       # distance_accuracy=1,
@@ -215,6 +230,9 @@ if __name__ == "__main__":
                        orientation_mse_parameters_dict=orientation_mse_parameters_dict,
                        # random_seed=18,
                        random_seed=RANDOM_SEED,
+                       distance_mse_model=BaseDistanceMSEModel(
+                           point_filter_obj=FalsePointsFilters(random_seed=RANDOM_SEED),
+                           random_seed=RANDOM_SEED),
                        )
     # scan = sg.create_scan(get_true_scan=True)
     # scan.export_points_from_file("true_scan1.xyz")
